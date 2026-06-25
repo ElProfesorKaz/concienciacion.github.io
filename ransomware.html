@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Demo Ciberseguridad — Simulador Ransomware</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;600&display=swap');
+
+    :root {
+      --bg: #0d0d0d;
+      --red: #ff1a1a;
+      --red-dim: #7a0000;
+      --amber: #ffb300;
+      --text: #e8e8e8;
+      --muted: #555;
+      --mono: 'Space Mono', monospace;
+      --sans: 'Inter', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── TRIGGER PAGE ── */
+    body {
+      background: #f0f2f5;
+      font-family: var(--sans);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    .trigger-card {
+      background: white;
+      border-radius: 16px;
+      padding: 48px 40px;
+      text-align: center;
+      max-width: 420px;
+      width: 90%;
+      box-shadow: 0 4px 32px rgba(0,0,0,0.1);
+    }
+
+    .trigger-card .logo {
+      font-size: 48px;
+      margin-bottom: 20px;
+    }
+
+    .trigger-card h2 {
+      font-family: var(--sans);
+      font-size: 20px;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin-bottom: 8px;
+    }
+
+    .trigger-card p {
+      font-size: 14px;
+      color: #666;
+      line-height: 1.6;
+      margin-bottom: 32px;
+    }
+
+    .trigger-card p strong { color: #1a1a1a; }
+
+    .btn-trigger {
+      display: inline-block;
+      padding: 14px 36px;
+      background: #0071e3;
+      color: white;
+      font-family: var(--sans);
+      font-size: 15px;
+      font-weight: 600;
+      border: none;
+      border-radius: 980px;
+      cursor: pointer;
+      transition: background 0.2s;
+      text-decoration: none;
+    }
+
+    .btn-trigger:hover { background: #0077ed; }
+
+    .safe-note {
+      margin-top: 20px;
+      font-size: 12px;
+      color: #aaa;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
+
+    /* ── LOCKSCREEN OVERLAY ── */
+    #lockscreen {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: #000;
+      font-family: var(--mono);
+      overflow: hidden;
+      cursor: default;
+      user-select: none;
+    }
+
+    /* Scanline effect */
+    #lockscreen::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(255,0,0,0.015) 2px,
+        rgba(255,0,0,0.015) 4px
+      );
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .lock-inner {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+      text-align: center;
+    }
+
+    /* skull */
+    .skull {
+      font-size: clamp(64px, 12vw, 100px);
+      animation: pulse-skull 1.5s ease-in-out infinite;
+      margin-bottom: 16px;
+      filter: drop-shadow(0 0 20px rgba(255,26,26,0.8));
+    }
+
+    @keyframes pulse-skull {
+      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 20px rgba(255,26,26,0.8)); }
+      50% { transform: scale(1.06); filter: drop-shadow(0 0 40px rgba(255,26,26,1)); }
+    }
+
+    .lock-title {
+      font-size: clamp(22px, 5vw, 38px);
+      font-weight: 700;
+      color: var(--red);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      text-shadow: 0 0 30px rgba(255,26,26,0.6);
+    }
+
+    .lock-subtitle {
+      font-size: clamp(11px, 2vw, 14px);
+      color: #cc0000;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      margin-bottom: 40px;
+      opacity: 0.8;
+    }
+
+    /* Counter */
+    .counter-label {
+      font-size: 11px;
+      letter-spacing: 3px;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .counter {
+      font-size: clamp(48px, 10vw, 80px);
+      font-weight: 700;
+      color: var(--red);
+      letter-spacing: -2px;
+      margin-bottom: 4px;
+      text-shadow: 0 0 40px rgba(255,26,26,0.5);
+      transition: color 0.3s;
+    }
+
+    .counter.urgent { color: var(--amber); animation: blink 0.5s step-end infinite; }
+    @keyframes blink { 50% { opacity: 0.3; } }
+
+    .counter-sub {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 2px;
+      margin-bottom: 40px;
+    }
+
+    /* Message */
+    .lock-msg {
+      max-width: 520px;
+      background: rgba(255,26,26,0.06);
+      border: 1px solid rgba(255,26,26,0.2);
+      border-radius: 8px;
+      padding: 20px 24px;
+      font-size: clamp(11px, 2vw, 13px);
+      color: #aaa;
+      line-height: 1.8;
+      margin-bottom: 36px;
+      text-align: left;
+    }
+
+    .lock-msg .line-red { color: var(--red); }
+    .lock-msg .line-amber { color: var(--amber); }
+
+    /* PIN */
+    .pin-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .pin-label {
+      font-size: 11px;
+      letter-spacing: 3px;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .pin-dots {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 4px;
+    }
+
+    .pin-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid var(--red-dim);
+      background: transparent;
+      transition: all 0.15s;
+    }
+
+    .pin-dot.filled {
+      background: var(--red);
+      border-color: var(--red);
+      box-shadow: 0 0 8px var(--red);
+    }
+
+    .pin-input {
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid var(--red-dim);
+      color: transparent;
+      caret-color: transparent;
+      font-family: var(--mono);
+      font-size: 24px;
+      letter-spacing: 12px;
+      text-align: center;
+      width: 120px;
+      outline: none;
+      padding: 8px;
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* Numpad */
+    .numpad {
+      display: grid;
+      grid-template-columns: repeat(3, 56px);
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .num-btn {
+      width: 56px;
+      height: 56px;
+      background: rgba(255,26,26,0.08);
+      border: 1px solid rgba(255,26,26,0.2);
+      border-radius: 50%;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .num-btn:hover { background: rgba(255,26,26,0.2); border-color: var(--red); }
+    .num-btn:active { transform: scale(0.92); }
+    .num-btn.zero { grid-column: 2; }
+    .num-btn.del { font-size: 14px; color: var(--muted); background: transparent; border-color: transparent; }
+    .num-btn.del:hover { color: var(--red); background: transparent; }
+
+    .pin-error {
+      font-size: 11px;
+      color: var(--red);
+      letter-spacing: 2px;
+      height: 16px;
+      animation: shake 0.3s ease;
+    }
+
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      25% { transform: translateX(-6px); }
+      75% { transform: translateX(6px); }
+    }
+
+    /* UNLOCK SUCCESS */
+    #unlock-screen {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      background: #000;
+      font-family: var(--mono);
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      text-align: center;
+      padding: 32px;
+    }
+
+    .unlock-icon { font-size: 72px; margin-bottom: 24px; animation: pop 0.4s cubic-bezier(0.175,0.885,0.32,1.275); }
+    @keyframes pop { from { transform: scale(0); } to { transform: scale(1); } }
+
+    .unlock-title {
+      font-size: clamp(20px, 4vw, 32px);
+      font-weight: 700;
+      color: #00e676;
+      margin-bottom: 12px;
+      text-shadow: 0 0 30px rgba(0,230,118,0.5);
+    }
+
+    .unlock-msg {
+      font-size: 13px;
+      color: #666;
+      max-width: 480px;
+      line-height: 1.8;
+      margin-bottom: 32px;
+    }
+
+    .lesson-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      max-width: 640px;
+      width: 100%;
+      margin-bottom: 32px;
+    }
+
+    .lesson-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 16px;
+      text-align: left;
+      font-size: 12px;
+      color: #888;
+      line-height: 1.6;
+    }
+
+    .lesson-card .lc-icon { font-size: 20px; margin-bottom: 8px; display: block; }
+    .lesson-card .lc-title { color: #ccc; font-weight: 700; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
+
+    .btn-restart {
+      padding: 12px 28px;
+      background: transparent;
+      border: 1px solid #333;
+      border-radius: 8px;
+      color: #555;
+      font-family: var(--mono);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      letter-spacing: 1px;
+    }
+
+    .btn-restart:hover { border-color: #00e676; color: #00e676; }
+
+    /* Glitch on lock */
+    .glitch {
+      animation: glitch 0.3s steps(2) forwards;
+    }
+
+    @keyframes glitch {
+      0%   { clip-path: inset(0 0 90% 0); transform: translateX(-4px); }
+      25%  { clip-path: inset(40% 0 40% 0); transform: translateX(4px); }
+      50%  { clip-path: inset(70% 0 10% 0); transform: translateX(-2px); }
+      75%  { clip-path: inset(20% 0 60% 0); transform: translateX(2px); }
+      100% { clip-path: inset(0); transform: translateX(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── PÁGINA TRIGGER ── -->
+  <div class="trigger-card" id="trigger-page">
+    <div class="logo">🖥️</div>
+    <h2>Actualización de seguridad disponible</h2>
+    <p>
+      Se ha detectado una actualización crítica para tu dispositivo.<br>
+      <strong>Haz clic en el botón para instalarla ahora.</strong><br><br>
+      Este proceso tardará unos segundos y no requiere reinicio.
+    </p>
+    <button class="btn-trigger" onclick="triggerLockscreen()">
+      Instalar actualización
+    </button>
+    <div class="safe-note">🔒 Conexión segura · Verificado</div>
+  </div>
+
+  <!-- ── LOCKSCREEN ── -->
+  <div id="lockscreen">
+    <div class="lock-inner">
+
+      <div class="skull" id="skull">💀</div>
+      <div class="lock-title">TUS ARCHIVOS HAN SIDO CIFRADOS</div>
+      <div class="lock-subtitle">— RANSOMWARE DETECTADO —</div>
+
+      <div class="counter-label">tiempo restante para eliminar tus archivos</div>
+      <div class="counter" id="counter">23:59:59</div>
+      <div class="counter-sub">HORAS · MINUTOS · SEGUNDOS</div>
+
+      <div class="lock-msg">
+        <div class="line-red">⚠ TODOS TUS DOCUMENTOS, FOTOS Y DATOS HAN SIDO CIFRADOS.</div>
+        <br>
+        <div>Tus archivos han sido bloqueados con cifrado AES-256.</div>
+        <div>Sin la clave privada, es <span class="line-red">imposible recuperarlos.</span></div>
+        <br>
+        <div class="line-amber">Para obtener la clave, deberías pagar 0.05 BTC (~2.800€)</div>
+        <div class="line-amber">antes de que el contador llegue a cero.</div>
+        <br>
+        <div>Si el tiempo expira, la clave será destruida permanentemente.</div>
+      </div>
+
+      <div class="pin-section">
+        <div class="pin-label">Introduce el código de desbloqueo</div>
+        <div class="pin-dots">
+          <div class="pin-dot" id="d0"></div>
+          <div class="pin-dot" id="d1"></div>
+          <div class="pin-dot" id="d2"></div>
+          <div class="pin-dot" id="d3"></div>
+        </div>
+        <div class="pin-error" id="pin-error"></div>
+        <div class="numpad">
+          <button class="num-btn" onclick="addDigit('1')">1</button>
+          <button class="num-btn" onclick="addDigit('2')">2</button>
+          <button class="num-btn" onclick="addDigit('3')">3</button>
+          <button class="num-btn" onclick="addDigit('4')">4</button>
+          <button class="num-btn" onclick="addDigit('5')">5</button>
+          <button class="num-btn" onclick="addDigit('6')">6</button>
+          <button class="num-btn" onclick="addDigit('7')">7</button>
+          <button class="num-btn" onclick="addDigit('8')">8</button>
+          <button class="num-btn" onclick="addDigit('9')">9</button>
+          <button class="num-btn zero" onclick="addDigit('0')">0</button>
+          <button class="num-btn del" onclick="delDigit()">⌫</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── PANTALLA DESBLOQUEADA ── -->
+  <div id="unlock-screen" style="display:none; position:fixed; inset:0; z-index:10000; background:#000; font-family:'Space Mono',monospace; display:none; align-items:center; justify-content:center; flex-direction:column; text-align:center; padding:32px;">
+    <div class="unlock-icon">✅</div>
+    <div class="unlock-title">ERA UNA SIMULACIÓN</div>
+    <div class="unlock-msg">
+      Esto ha sido una demo educativa de ciberseguridad.<br>
+      Ningún archivo ha sido cifrado ni dañado.<br><br>
+      Pero un ransomware real actúa exactamente así.
+    </div>
+
+    <div class="lesson-cards">
+      <div class="lesson-card">
+        <span class="lc-icon">🎣</span>
+        <div class="lc-title">Vector de entrada</div>
+        Hiciste clic en "Instalar actualización" sin verificar el origen. El 90% de los ransomwares entran por phishing o descargas falsas.
+      </div>
+      <div class="lesson-card">
+        <span class="lc-icon">🔐</span>
+        <div class="lc-title">Cifrado real</div>
+        WannaCry, Ryuk y LockBit usan AES-256 + RSA-2048. Sin la clave privada, los archivos son irrecuperables matemáticamente.
+      </div>
+      <div class="lesson-card">
+        <span class="lc-icon">⏱️</span>
+        <div class="lc-title">Presión psicológica</div>
+        El contador crea urgencia artificial para que pagues sin pensar. Es una táctica de ingeniería social deliberada.
+      </div>
+      <div class="lesson-card">
+        <span class="lc-icon">💾</span>
+        <div class="lc-title">La defensa real</div>
+        Regla 3-2-1: 3 copias, 2 soportes distintos, 1 fuera de la red. Una copia offline hace inútil cualquier ransomware.
+      </div>
+    </div>
+
+    <button class="btn-restart" onclick="restart()">← Reiniciar demo</button>
+  </div>
+
+<script>
+  const CORRECT_PIN = '0000';
+  let currentPin = '';
+  let timerInterval = null;
+  let seconds = 86399; // 23:59:59
+
+  function triggerLockscreen() {
+    // Glitch effect antes de bloquear
+    document.body.style.transition = 'filter 0.1s';
+    document.body.style.filter = 'invert(1)';
+    setTimeout(() => {
+      document.body.style.filter = 'none';
+      document.getElementById('lockscreen').style.display = 'block';
+      document.getElementById('trigger-page').style.display = 'none';
+      startTimer();
+      playAlarm();
+    }, 120);
+  }
+
+  function startTimer() {
+    timerInterval = setInterval(() => {
+      seconds--;
+      if (seconds < 0) seconds = 0;
+      const h = String(Math.floor(seconds / 3600)).padStart(2, '0');
+      const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+      const s = String(seconds % 60).padStart(2, '0');
+      const counter = document.getElementById('counter');
+      counter.textContent = `${h}:${m}:${s}`;
+      if (seconds < 300) counter.classList.add('urgent');
+    }, 1000);
+  }
+
+  // PIN logic
+  function addDigit(d) {
+    if (currentPin.length >= 4) return;
+    currentPin += d;
+    updateDots();
+    if (currentPin.length === 4) checkPin();
+  }
+
+  function delDigit() {
+    currentPin = currentPin.slice(0, -1);
+    updateDots();
+    document.getElementById('pin-error').textContent = '';
+  }
+
+  function updateDots() {
+    for (let i = 0; i < 4; i++) {
+      document.getElementById('d' + i).classList.toggle('filled', i < currentPin.length);
+    }
+  }
+
+  function checkPin() {
+    if (currentPin === CORRECT_PIN) {
+      unlock();
+    } else {
+      const err = document.getElementById('pin-error');
+      err.textContent = 'CÓDIGO INCORRECTO';
+      err.style.animation = 'none';
+      void err.offsetWidth;
+      err.style.animation = 'shake 0.3s ease';
+      setTimeout(() => {
+        currentPin = '';
+        updateDots();
+        err.textContent = '';
+      }, 800);
+    }
+  }
+
+  function unlock() {
+    clearInterval(timerInterval);
+    const ls = document.getElementById('lockscreen');
+    ls.style.transition = 'opacity 0.4s';
+    ls.style.opacity = '0';
+    setTimeout(() => {
+      ls.style.display = 'none';
+      const us = document.getElementById('unlock-screen');
+      us.style.display = 'flex';
+      us.style.opacity = '0';
+      us.style.transition = 'opacity 0.5s';
+      setTimeout(() => us.style.opacity = '1', 50);
+    }, 400);
+  }
+
+  function restart() {
+    currentPin = '';
+    seconds = 86399;
+    document.getElementById('unlock-screen').style.display = 'none';
+    document.getElementById('lockscreen').style.display = 'none';
+    document.getElementById('trigger-page').style.display = 'block';
+    document.getElementById('counter').classList.remove('urgent');
+    document.getElementById('pin-error').textContent = '';
+    updateDots();
+  }
+
+  // Alarm sound via Web Audio API
+  function playAlarm() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const beep = (freq, start, dur) => {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value = freq;
+        o.type = 'square';
+        g.gain.setValueAtTime(0.08, ctx.currentTime + start);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
+        o.start(ctx.currentTime + start);
+        o.stop(ctx.currentTime + start + dur);
+      };
+      // tres beeps graves amenazantes
+      beep(180, 0,    0.3);
+      beep(160, 0.35, 0.3);
+      beep(140, 0.70, 0.5);
+    } catch(e) {}
+  }
+
+  // Bloquear teclas durante el lockscreen (ESC, F5, etc.)
+  document.addEventListener('keydown', e => {
+    const ls = document.getElementById('lockscreen');
+    if (ls.style.display === 'block') {
+      if (['Escape','F5','F11'].includes(e.key)) e.preventDefault();
+      // teclado numérico
+      if (e.key >= '0' && e.key <= '9') addDigit(e.key);
+      if (e.key === 'Backspace') delDigit();
+    }
+  });
+</script>
+</body>
+</html>
